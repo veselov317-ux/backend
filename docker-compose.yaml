@@ -1,0 +1,48 @@
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: postgres-db
+    restart: always
+    environment:
+      POSTGRES_DB: sysdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-cache
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: service-desk-api
+    profiles: ["app"]
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/sysdb
+      DB_USERNAME: postgres
+      DB_PASSWORD: 1234
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: service-desk-demo-secret-key-change-me-please-32
+    ports:
+      - "8080:8080"
+
+
+volumes:
+  postgres_data:
+  redis_data:
