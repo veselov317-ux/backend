@@ -1,4 +1,7 @@
 package com.backend.sys.entity;
 
-public class Role {
+public enum Role {
+    USER,
+    AGENT,
+    ADMIN
 }
