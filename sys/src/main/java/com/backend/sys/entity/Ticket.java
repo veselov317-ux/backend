@@ -57,6 +57,9 @@ public class Ticket {
     @Column(nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "closed_at")
+    private Instant closedAt;
+
     @PrePersist
     void prePersist() {
         Instant now = Instant.now();
@@ -99,6 +102,13 @@ public class Ticket {
 
     public void setStatus(TicketStatus status) {
         this.status = status;
+        if (status == TicketStatus.CLOSED) {
+            if (this.closedAt == null) {
+                this.closedAt = Instant.now();
+            }
+        } else {
+            this.closedAt = null;
+        }
     }
 
     public Category getCategory() {
@@ -135,5 +145,9 @@ public class Ticket {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public Instant getClosedAt() {
+        return closedAt;
     }
 }

@@ -4,6 +4,8 @@ import com.backend.sys.dto.request.CommentCreateRequest;
 import com.backend.sys.dto.request.TicketCreateRequest;
 import com.backend.sys.dto.request.TicketUpdateRequest;
 import com.backend.sys.dto.response.CommentResponse;
+import com.backend.sys.dto.response.TicketListResponse;
+import com.backend.sys.dto.response.TicketPageResponse;
 import com.backend.sys.dto.response.TicketResponse;
 import com.backend.sys.entity.Category;
 import com.backend.sys.entity.Comment;
@@ -17,7 +19,8 @@ import com.backend.sys.repository.CommentRepository;
 import com.backend.sys.repository.TicketRepository;
 import com.backend.sys.repository.UserRepository;
 import java.util.List;
-import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,18 +49,19 @@ public class TicketService {
     }
 
     @Transactional(readOnly = true)
-    public List<TicketResponse> getTickets(String currentEmail, TicketStatus status, Long categoryId, String search) {
+    public TicketPageResponse getTickets(String currentEmail, TicketStatus status, Long categoryId, String search, int page, int size) {
         User currentUser = getUser(currentEmail);
-        List<Ticket> tickets = canSeeAllTickets(currentUser)
-                ? ticketRepository.findAllByOrderByUpdatedAtDesc()
-                : ticketRepository.findByRequesterOrderByUpdatedAtDesc(currentUser);
+        boolean seeAll = canSeeAllTickets(currentUser);
+        PageRequest pageRequest = PageRequest.of(Math.max(0, page), Math.max(1, size));
 
-        return tickets.stream()
-                .filter(ticket -> status == null || ticket.getStatus() == status)
-                .filter(ticket -> categoryId == null || ticket.getCategory().getId().equals(categoryId))
-                .filter(ticket -> matchesSearch(ticket, search))
-                .map(mapper::toTicket)
+        String normalizedSearch = StringUtils.hasText(search) ? search : null;
+        Page<Ticket> ticketPage = ticketRepository.findByFilters(seeAll ? null : currentUser, status, categoryId, normalizedSearch, pageRequest);
+
+        List<TicketListResponse> items = ticketPage.stream()
+                .map(mapper::toTicketList)
                 .toList();
+
+        return new TicketPageResponse(items, ticketPage.getTotalElements(), ticketPage.getTotalPages(), ticketPage.getNumber(), ticketPage.getSize());
     }
 
     @Transactional(readOnly = true)
@@ -68,7 +72,6 @@ public class TicketService {
     }
 
     @Transactional
-    @CacheEvict(value = "dashboardStats", allEntries = true)
     public TicketResponse createTicket(TicketCreateRequest request, String currentEmail) {
         User requester = getUser(currentEmail);
         Category category = categoryRepository.findById(request.categoryId())
@@ -85,27 +88,55 @@ public class TicketService {
     }
 
     @Transactional
-    @CacheEvict(value = "dashboardStats", allEntries = true)
-    public TicketResponse updateTicket(Long id, TicketUpdateRequest request, String currentEmail) {
+    public TicketResponse editTicket(Long id, com.backend.sys.dto.request.TicketEditRequest request, String currentEmail) {
+        User currentUser = getUser(currentEmail);
+        // requester or agents/admins can edit ticket content
+        Ticket ticket = findTicket(id);
+        assertCanAccess(ticket, currentUser);
+
+        if (request.title() != null) {
+            ticket.setTitle(request.title());
+        }
+        if (request.description() != null) {
+            ticket.setDescription(request.description());
+        }
+        if (request.categoryId() != null) {
+            Category category = categoryRepository.findById(request.categoryId())
+                    .filter(Category::isActive)
+                    .orElseThrow(() -> new ResourceNotFoundException("Active category not found"));
+            ticket.setCategory(category);
+        }
+        return mapper.toTicket(ticketRepository.save(ticket));
+    }
+
+    @Transactional
+    public TicketResponse updateTicketWorkflow(Long id, TicketUpdateRequest request, String currentEmail) {
         User currentUser = getUser(currentEmail);
         if (!canSeeAllTickets(currentUser)) {
             throw new AccessDeniedException("Only support agents and admins can update ticket workflow");
         }
 
         Ticket ticket = findTicket(id);
-        if (request.status() != null) {
-            ticket.setStatus(request.status());
-        }
         if (request.assignedAgentId() != null) {
             User agent = userRepository.findById(request.assignedAgentId())
                     .filter(user -> user.getRole() == Role.AGENT || user.getRole() == Role.ADMIN)
                     .orElseThrow(() -> new ResourceNotFoundException("Agent not found"));
             ticket.setAssignedAgent(agent);
+            // if assigning agent to an OPEN ticket, move it to IN_PROGRESS
             if (ticket.getStatus() == TicketStatus.OPEN) {
                 ticket.setStatus(TicketStatus.IN_PROGRESS);
             }
         }
-        return mapper.toTicket(ticket);
+        if (request.status() != null) {
+            // enforce ordered transitions: cannot move backwards
+            TicketStatus current = ticket.getStatus();
+            TicketStatus next = request.status();
+            if (next.ordinal() < current.ordinal()) {
+                throw new IllegalArgumentException("Invalid status transition from " + current + " to " + next);
+            }
+            ticket.setStatus(next);
+        }
+        return mapper.toTicket(ticketRepository.save(ticket));
     }
 
     @Transactional
@@ -128,7 +159,7 @@ public class TicketService {
     }
 
     private User getUser(String email) {
-        return userRepository.findByEmail(email)
+        return userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 

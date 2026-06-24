@@ -10,7 +10,6 @@ import com.backend.sys.repository.UserRepository;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -23,12 +22,11 @@ public class DashboardService {
         this.userRepository = userRepository;
     }
 
-    @Cacheable(value = "dashboardStats", key = "#currentEmail")
     public DashboardStatsResponse getStats(String currentEmail) {
-        User currentUser = userRepository.findByEmail(currentEmail)
+        User currentUser = userRepository.findByEmailIgnoreCase(currentEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         Map<String, Long> byStatus = Arrays.stream(TicketStatus.values())
-                .collect(Collectors.toMap(Enum::name, ticketRepository::countByStatus));
+                .collect(Collectors.toMap(Enum::name, s -> ticketRepository.countByStatusAndRequester(s, currentUser)));
 
         return new DashboardStatsResponse(
                 ticketRepository.count(),

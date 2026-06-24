@@ -12,6 +12,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.backend.sys.exception.ResourceConflictException;
+
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
@@ -27,6 +29,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({BadCredentialsException.class})
     ResponseEntity<ErrorResponse> handleUnauthorized(Exception exception) {
         return error(HttpStatus.UNAUTHORIZED, "Invalid email or password", null);
+    }
+
+    @ExceptionHandler(ResourceConflictException.class)
+    ResponseEntity<ErrorResponse> handleConflict(ResourceConflictException exception) {
+        return error(HttpStatus.CONFLICT, exception.getMessage(), null);
     }
 
     @ExceptionHandler({IllegalArgumentException.class})

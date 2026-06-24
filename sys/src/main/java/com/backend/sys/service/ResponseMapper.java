@@ -2,6 +2,7 @@ package com.backend.sys.service;
 
 import com.backend.sys.dto.response.CategoryResponse;
 import com.backend.sys.dto.response.CommentResponse;
+import com.backend.sys.dto.response.TicketListResponse;
 import com.backend.sys.dto.response.TicketResponse;
 import com.backend.sys.dto.response.UserResponse;
 import com.backend.sys.entity.Category;
@@ -62,7 +63,23 @@ public class ResponseMapper {
                         .map(this::toComment)
                         .toList(),
                 ticket.getCreatedAt(),
-                ticket.getUpdatedAt()
+                ticket.getUpdatedAt(),
+                ticket.getClosedAt()
+        );
+    }
+
+    public TicketListResponse toTicketList(Ticket ticket) {
+        return new TicketListResponse(
+                ticket.getId(),
+                ticket.getTitle(),
+                ticket.getDescription(),
+                ticket.getStatus(),
+                toCategory(ticket.getCategory()),
+                toUser(ticket.getRequester()),
+                toUser(ticket.getAssignedAgent()),
+                ticket.getCreatedAt(),
+                ticket.getUpdatedAt(),
+                ticket.getClosedAt()
         );
     }
 }

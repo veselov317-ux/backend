@@ -7,6 +7,7 @@ import com.backend.sys.dto.response.AuthResponse;
 import com.backend.sys.dto.response.UserResponse;
 import com.backend.sys.entity.Role;
 import com.backend.sys.entity.User;
+import com.backend.sys.exception.ResourceConflictException;
 import com.backend.sys.repository.UserRepository;
 import com.backend.sys.security.JwtTokenProvider;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -57,17 +58,17 @@ public class AuthService {
                 new UsernamePasswordAuthenticationToken(request.email(), request.password())
         );
         String token = tokenProvider.generateToken(authentication);
-        User user = userRepository.findByEmail(request.email()).orElseThrow();
+        User user = userRepository.findByEmailIgnoreCase(request.email()).orElseThrow();
         return new AuthResponse(token, "Bearer", mapper.toUser(user));
     }
 
     private User createUser(String fullName, String email, String password, Role role) {
-        if (userRepository.existsByEmail(email)) {
-            throw new IllegalArgumentException("Email is already registered");
+        if (userRepository.existsByEmailIgnoreCase(email)) {
+            throw new ResourceConflictException("Email is already registered");
         }
         User user = new User();
         user.setFullName(fullName);
-        user.setEmail(email.toLowerCase());
+        user.setEmail(email);
         user.setPassword(passwordEncoder.encode(password));
         user.setRole(role);
         return userRepository.save(user);

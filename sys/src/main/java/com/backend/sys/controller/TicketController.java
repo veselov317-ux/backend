@@ -4,6 +4,7 @@ import com.backend.sys.dto.request.CommentCreateRequest;
 import com.backend.sys.dto.request.TicketCreateRequest;
 import com.backend.sys.dto.request.TicketUpdateRequest;
 import com.backend.sys.dto.response.CommentResponse;
+import com.backend.sys.dto.response.TicketPageResponse;
 import com.backend.sys.dto.response.TicketResponse;
 import com.backend.sys.entity.TicketStatus;
 import com.backend.sys.service.TicketService;
@@ -31,13 +32,15 @@ public class TicketController {
     }
 
     @GetMapping
-    public List<TicketResponse> getTickets(
+    public TicketPageResponse getTickets(
             @RequestParam(required = false) TicketStatus status,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
             Principal principal
     ) {
-        return ticketService.getTickets(principal.getName(), status, categoryId, search);
+        return ticketService.getTickets(principal.getName(), status, categoryId, search, page, size);
     }
 
     @GetMapping("/{id}")
@@ -52,12 +55,22 @@ public class TicketController {
     }
 
     @PatchMapping("/{id}")
-    public TicketResponse updateTicket(
+    public TicketResponse editTicket(
+            @PathVariable Long id,
+            @Valid @RequestBody com.backend.sys.dto.request.TicketEditRequest request,
+            Principal principal
+    ) {
+        return ticketService.editTicket(id, request, principal.getName());
+    }
+
+    @PatchMapping("/{id}/workflow")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")
+    public TicketResponse updateWorkflow(
             @PathVariable Long id,
             @Valid @RequestBody TicketUpdateRequest request,
             Principal principal
     ) {
-        return ticketService.updateTicket(id, request, principal.getName());
+        return ticketService.updateTicketWorkflow(id, request, principal.getName());
     }
 
     @PostMapping("/{id}/comments")

@@ -26,7 +26,7 @@ public class DataInitializer {
             String fullName,
             Role role
     ) {
-        if (userRepository.existsByEmail(email)) {
+        if (userRepository.existsByEmailIgnoreCase(email)) {
             return;
         }
         User user = new User();

@@ -10,6 +10,8 @@ import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -32,6 +34,7 @@ public class CategoryController {
     }
 
     @GetMapping
+    @Cacheable(value = "categories")
     public List<CategoryResponse> getCategories() {
         return categoryRepository.findByActiveTrueOrderByNameAsc().stream()
                 .map(mapper::toCategory)
@@ -41,6 +44,7 @@ public class CategoryController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('ADMIN')")
+    @CacheEvict(value = "categories", allEntries = true)
     public CategoryResponse createCategory(@Valid @RequestBody CategoryRequest request) {
         if (categoryRepository.existsByNameIgnoreCase(request.name())) {
             throw new IllegalArgumentException("Category name already exists");
@@ -56,6 +60,7 @@ public class CategoryController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
+    @CacheEvict(value = "categories", allEntries = true)
     public CategoryResponse updateCategory(@PathVariable Long id, @Valid @RequestBody CategoryRequest request) {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
@@ -70,6 +75,7 @@ public class CategoryController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasRole('ADMIN')")
+    @CacheEvict(value = "categories", allEntries = true)
     public void deactivateCategory(@PathVariable Long id) {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
