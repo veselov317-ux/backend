@@ -10,8 +10,9 @@ import com.backend.sys.entity.TicketStatus;
 import com.backend.sys.service.TicketService;
 import jakarta.validation.Valid;
 import java.security.Principal;
-import java.util.List;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -81,5 +82,19 @@ public class TicketController {
             Principal principal
     ) {
         return ticketService.addComment(id, request, principal.getName());
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasRole('ADMIN')")
+    public void deleteTicket(@PathVariable Long id) {
+        ticketService.deleteTicket(id);
+    }
+
+    @DeleteMapping("/{ticketId}/comments/{commentId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasRole('ADMIN')")
+    public void deleteComment(@PathVariable Long ticketId, @PathVariable Long commentId) {
+        ticketService.deleteComment(ticketId, commentId);
     }
 }

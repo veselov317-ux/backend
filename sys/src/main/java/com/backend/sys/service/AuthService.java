@@ -8,6 +8,7 @@ import com.backend.sys.dto.response.UserResponse;
 import com.backend.sys.entity.Role;
 import com.backend.sys.entity.User;
 import com.backend.sys.exception.ResourceConflictException;
+import com.backend.sys.exception.ResourceNotFoundException;
 import com.backend.sys.repository.UserRepository;
 import com.backend.sys.security.JwtTokenProvider;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -51,6 +52,21 @@ public class AuthService {
             return mapper.toUser(createUser(request.fullName(), request.email(), request.password(), Role.USER));
         }
         return mapper.toUser(createUser(request.fullName(), request.email(), request.password(), request.role()));
+    }
+
+    @Transactional
+    public void deactivateAccount(Long id, String currentEmail) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (user.getEmail().equalsIgnoreCase(currentEmail)) {
+            throw new IllegalArgumentException("You cannot delete your own account");
+        }
+        if (user.getRole() == Role.ADMIN && userRepository.countByRoleAndEnabledTrue(Role.ADMIN) <= 1) {
+            throw new IllegalArgumentException("Cannot delete the last active admin");
+        }
+
+        user.setEnabled(false);
+        userRepository.save(user);
     }
 
     public AuthResponse login(LoginRequest request) {

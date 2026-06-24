@@ -7,6 +7,7 @@ import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -29,6 +30,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({BadCredentialsException.class})
     ResponseEntity<ErrorResponse> handleUnauthorized(Exception exception) {
         return error(HttpStatus.UNAUTHORIZED, "Invalid email or password", null);
+    }
+
+    @ExceptionHandler({AuthenticationException.class})
+    ResponseEntity<ErrorResponse> handleAuthentication(Exception exception) {
+        return error(HttpStatus.UNAUTHORIZED, "Authentication failed", null);
     }
 
     @ExceptionHandler(ResourceConflictException.class)

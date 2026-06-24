@@ -18,9 +18,13 @@ import com.backend.sys.repository.CategoryRepository;
 import com.backend.sys.repository.CommentRepository;
 import com.backend.sys.repository.TicketRepository;
 import com.backend.sys.repository.UserRepository;
+import jakarta.persistence.criteria.Predicate;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,10 +56,17 @@ public class TicketService {
     public TicketPageResponse getTickets(String currentEmail, TicketStatus status, Long categoryId, String search, int page, int size) {
         User currentUser = getUser(currentEmail);
         boolean seeAll = canSeeAllTickets(currentUser);
-        PageRequest pageRequest = PageRequest.of(Math.max(0, page), Math.max(1, size));
+        PageRequest pageRequest = PageRequest.of(
+                Math.max(0, page),
+                Math.max(1, size),
+                Sort.by(Sort.Direction.DESC, "updatedAt")
+        );
 
         String normalizedSearch = StringUtils.hasText(search) ? search : null;
-        Page<Ticket> ticketPage = ticketRepository.findByFilters(seeAll ? null : currentUser, status, categoryId, normalizedSearch, pageRequest);
+        Page<Ticket> ticketPage = ticketRepository.findAll(
+                ticketFilters(seeAll ? null : currentUser, status, categoryId, normalizedSearch),
+                pageRequest
+        );
 
         List<TicketListResponse> items = ticketPage.stream()
                 .map(mapper::toTicketList)
@@ -153,6 +164,19 @@ public class TicketService {
         return mapper.toComment(commentRepository.save(comment));
     }
 
+    @Transactional
+    public void deleteTicket(Long id) {
+        Ticket ticket = findTicket(id);
+        ticketRepository.delete(ticket);
+    }
+
+    @Transactional
+    public void deleteComment(Long ticketId, Long commentId) {
+        Comment comment = commentRepository.findByIdAndTicketId(commentId, ticketId)
+                .orElseThrow(() -> new ResourceNotFoundException("Comment not found"));
+        commentRepository.delete(comment);
+    }
+
     private Ticket findTicket(Long id) {
         return ticketRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found"));
@@ -174,12 +198,28 @@ public class TicketService {
         return user.getRole() == Role.AGENT || user.getRole() == Role.ADMIN;
     }
 
-    private boolean matchesSearch(Ticket ticket, String search) {
-        if (!StringUtils.hasText(search)) {
-            return true;
-        }
-        String normalized = search.toLowerCase();
-        return ticket.getTitle().toLowerCase().contains(normalized)
-                || ticket.getDescription().toLowerCase().contains(normalized);
+    private Specification<Ticket> ticketFilters(User requester, TicketStatus status, Long categoryId, String search) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (requester != null) {
+                predicates.add(criteriaBuilder.equal(root.get("requester"), requester));
+            }
+            if (status != null) {
+                predicates.add(criteriaBuilder.equal(root.get("status"), status));
+            }
+            if (categoryId != null) {
+                predicates.add(criteriaBuilder.equal(root.get("category").get("id"), categoryId));
+            }
+            if (search != null) {
+                String pattern = "%" + search.toLowerCase() + "%";
+                predicates.add(criteriaBuilder.or(
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("title")), pattern),
+                        criteriaBuilder.like(criteriaBuilder.lower(root.get("description")), pattern)
+                ));
+            }
+
+            return criteriaBuilder.and(predicates.toArray(Predicate[]::new));
+        };
     }
 }
